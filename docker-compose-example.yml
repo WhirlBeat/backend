@@ -1,0 +1,17 @@
+# Set the version of docker compose to use
+version: '2.32.4'
+
+# The containers that compose the project
+services:
+  db:
+    image: postgres:16.3
+    restart: always
+    container_name: "whirlbeat-backend-db"
+    ports:
+      # Change "7575" to the port that you wish for your database to be in.
+      - "9321:5432"
+    environment:
+      # If you wish to change these, please change the DATABASE_URL in the .env
+      POSTGRES_USER: "admin"
+      POSTGRES_PASSWORD: "azelynnwashere"
+      POSTGRES_DB: "main"
