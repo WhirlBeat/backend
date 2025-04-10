@@ -6,6 +6,7 @@ const result = parseEnvironmentVariables({
         parser: parseInt,
         default: 9320
     },
+    HOST: {},
     DATABASE_URL: {},
     BACKEND_PASSWORD: {}
 });
