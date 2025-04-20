@@ -217,6 +217,36 @@ expressClient.post("/api/scores", async (req, res) => {
 
 
 
+expressClient.get(
+    "/api/hello",
+    query("password").optional().isString(),
+    async (req, res) => {
+        const validation = validationResult(req);
+        if (!validation.isEmpty()) {
+            res.status(StatusCodes.BAD_REQUEST).send({
+                message: "what is that request lol goofy ahh",
+                moreInfo: validation.array()
+            })
+            return;
+        }
+
+        const qp = req.query as { password: string | undefined };
+        if (qp.password !== undefined) {
+            const isCorrect = isCorrectPassword(qp.password);
+            res.status(isCorrect ? StatusCodes.OK : StatusCodes.FORBIDDEN).send({
+                message: isCorrect ? "Correct password." : "Incorrect password."
+            });
+            return;
+        }
+
+        res.status(StatusCodes.OK).send({
+            "message": "Hello world!"
+        })
+    }
+)
+
+
+
 
 async function main() {
     prismaClient.$connect();
