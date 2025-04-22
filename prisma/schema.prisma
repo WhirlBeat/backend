@@ -5,21 +5,16 @@ datasource db {
 
 generator client {
     provider = "prisma-client-js"
-    output   = "app/generated/prisma/client"
+    output   = "app"
 }
 
-model ScoreOneTiming {
+model ScoreTiming {
     id Int @id @default(autoincrement())
 
     score Int
     username String
-    createdOn  DateTime @default(now())
-}
 
-model ScoreMultipleTiming {
-    id Int @id @default(autoincrement())
+    placement Int @default(0)
 
-    score Int
-    username String
     createdOn  DateTime @default(now())
 }
