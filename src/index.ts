@@ -4,20 +4,27 @@ import { expressClient } from "./express";
 import { prismaClient } from "./prisma";
 import { z } from "zod";
 import { query, validationResult } from "express-validator";
-import { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma";
 
+
+
+interface GetQuery {
+    id: number;
+}
+interface GetPrismaRequest {
+    where: { id: number };
+}
 
 
 interface GetManyQuery {
     loadCount: number | undefined;
     centerOn: number | undefined;
 }
-
 interface GetManyPrismaRequest {
     cursor?: { id: number };
     take?: number;
     skip?: number;
-    orderBy?: { score: Prisma.SortOrder };
+    orderBy?: { score: Prisma.SortOrder } | Prisma.ScoreTimingFindManyArgs["orderBy"];
 }
 
 
@@ -26,7 +33,6 @@ interface PostSchema {
     username: string;
     password: string;
 }
-
 interface PostPrismaRequest {
     data: {
         score: number;
@@ -34,11 +40,31 @@ interface PostPrismaRequest {
     };
 }
 
+
+interface UpdatePlacementsSchema {
+    id: number;
+    placement: number;
+}
+interface UpdatePlacementsPrismaRequest {
+    where: { id: number };
+    data: {
+        placement: number;
+    };
+
+}
+
 abstract class ScoreTableHandler<Result> {
+    public abstract performGet(getPrismaRequest: GetPrismaRequest): Promise<Result>;
+    public async get(getQuery: GetQuery) {
+        return await this.performGet({
+            where: { id: getQuery.id }
+        });
+    }
+
     public abstract performGetAll(getManyPrismaRequest: GetManyPrismaRequest): Promise<Result[]>;
     public async getAll(getManyQuery: GetManyQuery) {
         const take = getManyQuery.loadCount ?? 10;
-        const orderBy: { score: Prisma.SortOrder } = { score: "desc" };
+        const orderBy: { placement: Prisma.SortOrder } = { placement: "asc" };
 
         if (getManyQuery.centerOn !== undefined) {
             const before = await this.performGetAll({
@@ -74,34 +100,38 @@ abstract class ScoreTableHandler<Result> {
             }
         });
     }
-}
 
-
-class OneTiming extends ScoreTableHandler<
-    Prisma.ScoreOneTimingGetPayload<{}>
-> {
-    public async performGetAll(getManyPrismaRequest: GetManyPrismaRequest): Promise<Prisma.ScoreOneTimingGetPayload<{}>[]> {
-        return await prismaClient.scoreOneTiming.findMany(getManyPrismaRequest);
-    }
-
-    public async performPost(postPrismaRequest: PostPrismaRequest): Promise<{ id: number; score: number; username: string; createdOn: Date; }> {
-        return await prismaClient.scoreOneTiming.create(postPrismaRequest)
+    public abstract performUpdatePlacements(updatePlacementsPrismaRequest: UpdatePlacementsPrismaRequest): Prisma.PrismaPromise<Result>;
+    public updatePlacements(updatePlacementsSchema: UpdatePlacementsSchema) {
+        return this.performUpdatePlacements({
+            where: { id: updatePlacementsSchema.id },
+            data: {
+                placement: updatePlacementsSchema.placement
+            }
+        });
     }
 }
-const oneTiming = new OneTiming();
 
-class MultipleTiming extends ScoreTableHandler<
-    Prisma.ScoreMultipleTimingGetPayload<{}>
-> {
-    public async performGetAll(getManyPrismaRequest: GetManyPrismaRequest): Promise<Prisma.ScoreMultipleTimingGetPayload<{}>[]> {
-        return await prismaClient.scoreMultipleTiming.findMany(getManyPrismaRequest);
+
+type TimingResult = Prisma.ScoreTimingGetPayload<{}>;
+class TimingScoreTable extends ScoreTableHandler<TimingResult> {
+    public async performGet(getPrismaRequest: GetPrismaRequest): Promise<TimingResult> {
+        return await prismaClient.scoreTiming.findUnique(getPrismaRequest) as TimingResult;
     }
 
-    public async performPost(postPrismaRequest: PostPrismaRequest): Promise<Prisma.ScoreMultipleTimingGetPayload<{}>> {
-        return await prismaClient.scoreMultipleTiming.create(postPrismaRequest)
+    public async performGetAll(getManyPrismaRequest: GetManyPrismaRequest): Promise<TimingResult[]> {
+        return await prismaClient.scoreTiming.findMany(getManyPrismaRequest);
+    }
+
+    public async performPost(postPrismaRequest: PostPrismaRequest): Promise<TimingResult> {
+        return await prismaClient.scoreTiming.create(postPrismaRequest)
+    }
+
+    public performUpdatePlacements(updatePlacementsPrismaRequest: UpdatePlacementsPrismaRequest): Prisma.PrismaPromise<TimingResult> {
+        return prismaClient.scoreTiming.update(updatePlacementsPrismaRequest);
     }
 }
-const multipleTiming = new MultipleTiming();
+const timingScoreTable = new TimingScoreTable();
 
 
 
@@ -110,8 +140,7 @@ function isCorrectPassword(password: string) {
 }
 
 function getScoreTableHandler(tableName: string) {
-    if (tableName === "oneTiming") return oneTiming;
-    else if (tableName === "multipleTiming") return multipleTiming;
+    if (tableName === "timing") return timingScoreTable;
     else return undefined;
 }
 
@@ -163,6 +192,32 @@ expressClient.get("/api/scores",
 
 
 
+async function updatePlacements<Result>(scoreTableHandler: ScoreTableHandler<Result>) {
+    const results = await scoreTableHandler.performGetAll({
+        orderBy: [
+            { score: "desc" },
+            { createdOn: "asc"}
+        ],
+    });
+
+    const transactions: Prisma.PrismaPromise<unknown>[] = [];
+    for (let idx = 0; idx < results.length; idx++) {
+        const result = results[idx];
+        const placement = idx + 1;
+
+        transactions.push(
+            scoreTableHandler.updatePlacements({
+                id: (result as { id: number }).id,
+                placement: placement
+            })
+        )
+    }
+
+    await prismaClient.$transaction(transactions);
+}
+
+
+
 interface PostZodSchema {
     tableName: string;
     score: number;
@@ -206,7 +261,10 @@ expressClient.post("/api/scores", async (req, res) => {
     }
 
 
-    const result = await scoreTableHandler.post(requestBody);
+    const initialResult = await scoreTableHandler.post(requestBody);
+    await updatePlacements(scoreTableHandler);
+
+    const result = await scoreTableHandler.get({ id: initialResult.id });
 
     res.status(200).json({
         message: "Success",
