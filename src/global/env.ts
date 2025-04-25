@@ -14,3 +14,9 @@ const result = parseEnvironmentVariables({
 if (!result.success) throw new Error("Invalid .env file, or you didn't make one yet.");
 
 export const env = result.env;
+
+
+
+export function isCorrectPassword(password: string) {
+    return password === env.BACKEND_PASSWORD;
+}
