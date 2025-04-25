@@ -65,15 +65,15 @@ expressClient.get(ENDPOINT, ...GET_HANDLERS, async (req, res) => {
 interface TimingPostData {
     score: number;
     username: string;
-    multiplier: number;
-    mods: string[];
+    multiplier?: number;
+    mods?: string[];
 }
 
 const timingPostDataSchema = z.object({
     score: z.number().int(),
     username: z.string().nonempty().min(1).max(3),
-    multiplier: z.number(),
-    mods: z.string().array()
+    multiplier: z.number().optional(),
+    mods: z.string().array().optional()
 }) as z.ZodSchema<TimingPostData>;
 
 expressClient.post(ENDPOINT, ...getPostHandlers(timingPostDataSchema), async (req, res) => {
