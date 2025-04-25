@@ -13,8 +13,10 @@ model ScoreTiming {
 
     score Int
     username String
-
     placement Int @default(0)
+
+    multiplier Float @default(1.0)
+    mods String[] @default([])
 
     createdOn  DateTime @default(now())
 }
