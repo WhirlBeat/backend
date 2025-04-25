@@ -1,7 +1,5 @@
 import { StatusCodes } from "http-status-codes";
-import { env } from "./env";
-import { expressClient } from "./express";
-import { prismaClient } from "./prisma";
+import { env, expressClient, prismaClient } from "@src/global";
 import { z } from "zod";
 import { query, validationResult } from "express-validator";
 import { Prisma } from "@prisma";
